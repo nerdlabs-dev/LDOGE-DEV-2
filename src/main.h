@@ -16,6 +16,8 @@
 
 #include <list>
 
+#include <boost/filesystem/path.hpp>
+
 class CBlock;
 class CBlockIndex;
 class CInv;
@@ -40,6 +42,20 @@ static const unsigned int MAX_P2SH_SIGOPS = 15;
 static const unsigned int MAX_TX_SIGOPS = MAX_BLOCK_SIGOPS/5;
 /** The maximum number of orphan transactions kept in memory */
 static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
+/** Block files roll over at this size (25 MiB, about 26.2 MB on disk) */
+static const unsigned int MAX_BLOCKFILE_SIZE = 25 * 1024 * 1024;
+/** Default -dbcache, in megabytes */
+static const int64_t DEFAULT_TXDB_CACHE_MB = 100;
+/** Default number of blocks announced per getblocks request (-blockbatchsize) */
+static const int DEFAULT_BLOCK_BATCH_SIZE = 500;
+/** Seconds without a new block (while a peer is ahead of us) before sync asks again */
+static const int64_t SYNC_STALL_TIMEOUT = 60;
+/** Stall watchdog firings in a row (at the same height) before switching to another sync peer */
+static const int SYNC_STALLS_BEFORE_SWITCH = 2;
+/** Peers within this many blocks of the tallest peer all count as tall enough to sync from */
+static const int SYNC_HEIGHT_SLACK = 1000;
+/** Move off a sync peer that has run out of blocks when another peer is at least this far ahead */
+static const int SYNC_SWITCH_MARGIN = 100;
 /** Default for -maxorphanblocks, maximum number of orphan blocks kept in memory */
 static const unsigned int DEFAULT_MAX_ORPHAN_BLOCKS = 40;
 /** The maximum number of entries in an 'inv' protocol message */
@@ -131,6 +147,10 @@ void PushGetBlocks(CNode* pnode, CBlockIndex* pindexBegin, uint256 hashEnd);
 bool ProcessBlock(CNode* pfrom, CBlock* pblock);
 bool CheckDiskSpace(uint64_t nAdditionalBytes=0);
 FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
+boost::filesystem::path GetBlockFileDir();
+boost::filesystem::path BlockFilePath(unsigned int nFile);
+/** Create the block file directory and move block files from older versions into it */
+bool MigrateBlockFiles(std::string& strError);
 FILE* AppendBlockFile(unsigned int& nFileRet);
 bool LoadBlockIndex(bool fAllowNew=true);
 void PrintBlockTree();
@@ -582,7 +602,7 @@ public:
  * in the block is a special one that creates a new coin owned by the creator
  * of the block.
  *
- * Blocks are appended to blk0001.dat files on disk.  Their location on disk
+ * Blocks are appended to chain/blk0001.dat files on disk.  Their location on disk
  * is indexed by CBlockIndex objects in memory.
  */
 class CBlock

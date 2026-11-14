@@ -46,6 +46,10 @@ CNode* FindNode(const std::string& addrName);
 CNode* FindNode(const CService& ip);
 CNode* ConnectNode(CAddress addrConnect, const char *strDest = NULL);
 void MapPort(bool fUseUPnP);
+/** Is this the peer we're downloading the chain from? */
+bool IsSyncNode(const CNode* pnode);
+/** Stop downloading from this peer and pick another (it's skipped for nSeconds) */
+void ReleaseSyncNode(CNode* pnode, int64_t nSeconds);
 unsigned short GetListenPort();
 bool BindListenPort(const CService &bindAddr, std::string& strError=REF(std::string()));
 void StartNode(boost::thread_group& threadGroup);
@@ -235,7 +239,13 @@ public:
     uint256 hashContinue;
     CBlockIndex* pindexLastGetBlocksBegin;
     uint256 hashLastGetBlocksEnd;
+    int64_t nLastGetBlocksTime; // when we last sent this peer a getblocks request
+    int nSyncStalls;            // stall watchdog firings in a row at the same height
+    int nSyncStallHeight;       // our height at the last firing
+    int64_t nSyncAvoidUntil;    // don't pick this peer to sync from before this time
     int nStartingHeight;
+    int nKnownHeight;           // highest block height this peer is known to have:
+                                // its version height, raised by blocks it sends or announces
     bool fStartSync;
 
     // flood relay
@@ -287,7 +297,12 @@ public:
         hashContinue = 0;
         pindexLastGetBlocksBegin = 0;
         hashLastGetBlocksEnd = 0;
+        nLastGetBlocksTime = 0;
+        nSyncStalls = 0;
+        nSyncStallHeight = -1;
+        nSyncAvoidUntil = 0;
         nStartingHeight = -1;
+        nKnownHeight = -1;
         fStartSync = false;
         fGetAddr = false;
         nMisbehavior = 0;

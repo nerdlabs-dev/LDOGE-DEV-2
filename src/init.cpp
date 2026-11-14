@@ -166,7 +166,7 @@ std::string HelpMessage()
     strUsage += "  -pid=<file>            " + _("Specify pid file (default: litedoged.pid)") + "\n";
     strUsage += "  -datadir=<dir>         " + _("Specify data directory") + "\n";
     strUsage += "  -wallet=<dir>          " + _("Specify wallet file (within data directory)") + "\n";
-    strUsage += "  -dbcache=<n>           " + _("Set database cache size in megabytes (default: 25)") + "\n";
+    strUsage += "  -dbcache=<n>           " + _("Set database cache size in megabytes (default: 100)") + "\n";
     strUsage += "  -dblogsize=<n>         " + _("Set database disk log size in megabytes (default: 100)") + "\n";
     strUsage += "  -timeout=<n>           " + _("Specify connection timeout in milliseconds (default: 5000)") + "\n";
     strUsage += "  -proxy=<ip:port>       " + _("Connect through socks proxy") + "\n";
@@ -175,6 +175,7 @@ std::string HelpMessage()
     strUsage += "  -dns                   " + _("Allow DNS lookups for -addnode, -seednode and -connect") + "\n";
     strUsage += "  -port=<port>           " + _("Listen for connections on <port> (default: 17014 or testnet: 27014)") + "\n";
     strUsage += "  -maxconnections=<n>    " + _("Maintain at most <n> connections to peers (default: 125)") + "\n";
+    strUsage += "  -blockbatchsize=<n>    " + _("Number of blocks to send a syncing peer per request, 1-5000 (default: 500)") + "\n";
     strUsage += "  -addnode=<ip>          " + _("Add a node to connect to and attempt to keep the connection open") + "\n";
     strUsage += "  -connect=<ip>          " + _("Connect only to the specified node(s)") + "\n";
     strUsage += "  -seednode=<ip>         " + _("Connect to a node to retrieve peer addresses, and disconnect") + "\n";
@@ -649,6 +650,12 @@ bool AppInit2(boost::thread_group& threadGroup)
         AddOneShot(strDest);
 
     // ********************************************************* Step 7: load blockchain
+
+    {
+        std::string strBlockFileError;
+        if (!MigrateBlockFiles(strBlockFileError))
+            return InitError(strBlockFileError);
+    }
 
     if (GetBoolArg("-loadblockindextest", false))
     {

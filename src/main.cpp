@@ -2201,9 +2201,13 @@ bool CBlock::AcceptBlock()
     if (!AddToBlockIndex(nFile, nBlockPos, hashProof))
         return error("AcceptBlock() : AddToBlockIndex failed");
 
-    // Relay inventory, but don't relay old inventory during initial block download
+    // Relay inventory, but don't relay old inventory during initial block download.
+    // While we are still catching up (our tip is more than a day old) every block
+    // we add is old news: a peer that is ahead of us already has it, and a peer
+    // behind us can't connect it and only answers with getdata and getblocks
+    // requests that keep both nodes busy.
     int nBlockEstimate = Checkpoints::GetTotalBlocksEstimate();
-    if (hashBestChain == hash)
+    if (hashBestChain == hash && GetBlockTime() > GetAdjustedTime() - 24 * 60 * 60)
     {
         LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
@@ -2247,6 +2251,7 @@ void PushGetBlocks(CNode* pnode, CBlockIndex* pindexBegin, uint256 hashEnd)
         return;
     pnode->pindexLastGetBlocksBegin = pindexBegin;
     pnode->hashLastGetBlocksEnd = hashEnd;
+    pnode->nLastGetBlocksTime = GetTime();
 
     pnode->PushMessage("getblocks", CBlockLocator(pindexBegin), hashEnd);
 }
@@ -2507,10 +2512,58 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
     return true;
 }
 
-static boost::filesystem::path BlockFilePath(unsigned int nFile)
+// Block files (blkNNNN.dat) live in their own "chain" subdirectory of the
+// data directory, as in the FlapX wallet: with 25 MiB files there are many.
+boost::filesystem::path GetBlockFileDir()
 {
-    string strBlockFn = strprintf("blk%04u.dat", nFile);
-    return GetDataDir() / strBlockFn;
+    return GetDataDir() / "chain";
+}
+
+boost::filesystem::path BlockFilePath(unsigned int nFile)
+{
+    return GetBlockFileDir() / strprintf("blk%04u.dat", nFile);
+}
+
+bool MigrateBlockFiles(std::string& strError)
+{
+    // Create the chain directory, and move block files written by older
+    // versions straight into the data directory over to it. The block index
+    // records file numbers, not paths, so no reindex is needed.
+    boost::filesystem::path dir = GetBlockFileDir();
+    boost::system::error_code ec;
+    boost::filesystem::create_directories(dir, ec);
+    if (ec)
+    {
+        strError = strprintf("Unable to create %s: %s", dir.string(), ec.message());
+        return false;
+    }
+
+    unsigned int nMoved = 0;
+    for (unsigned int nFile = 1; ; nFile++)
+    {
+        boost::filesystem::path pathOld = GetDataDir() / strprintf("blk%04u.dat", nFile);
+        if (!boost::filesystem::exists(pathOld))
+            break;
+        boost::filesystem::path pathNew = BlockFilePath(nFile);
+        if (boost::filesystem::exists(pathNew))
+        {
+            // Never overwrite: two copies of the same file number means
+            // something unexpected happened, so leave it to the user.
+            strError = strprintf("Block file %s exists both in %s and in %s. Move one of them away before starting.",
+                                 pathOld.filename().string(), GetDataDir().string(), dir.string());
+            return false;
+        }
+        boost::filesystem::rename(pathOld, pathNew, ec);
+        if (ec)
+        {
+            strError = strprintf("Unable to move %s to %s: %s", pathOld.string(), dir.string(), ec.message());
+            return false;
+        }
+        nMoved++;
+    }
+    if (nMoved > 0)
+        LogPrintf("Moved %u block file(s) into %s\n", nMoved, dir.string());
+    return true;
 }
 
 FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode)
@@ -2543,8 +2596,11 @@ FILE* AppendBlockFile(unsigned int& nFileRet)
             return NULL;
         if (fseek(file, 0, SEEK_END) != 0)
             return NULL;
-        // FAT32 file size max 4GB, fseek and ftell max 2GB, so we must stay under 2GB
-        if (ftell(file) < (long)(0x7F000000 - MAX_SIZE))
+        // Roll over to a new file once this one reaches MAX_BLOCKFILE_SIZE.
+        // A file can exceed it by at most one block (MAX_BLOCK_SIZE), which
+        // keeps every file far below the 2GB fseek/ftell limit. (Older
+        // versions wrote files of up to 2GB; new blocks go to a new file.)
+        if (ftell(file) < (long)MAX_BLOCKFILE_SIZE)
         {
             nFileRet = nCurrentBlockFile;
             return file;
@@ -3033,6 +3089,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             vRecv >> pfrom->strSubVer;
         if (!vRecv.empty())
             vRecv >> pfrom->nStartingHeight;
+        pfrom->nKnownHeight = pfrom->nStartingHeight;
 
         // Disconnect if we connected to ourself
         if (nNonce == nLocalHostNonce && nNonce > 1)
@@ -3224,6 +3281,14 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             boost::this_thread::interruption_point();
             pfrom->AddInventoryKnown(inv);
 
+            // A peer announcing a block we already have indexed has at least that height
+            if (inv.type == MSG_BLOCK)
+            {
+                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
+                if (mi != mapBlockIndex.end() && mi->second->nHeight > pfrom->nKnownHeight)
+                    pfrom->nKnownHeight = mi->second->nHeight;
+            }
+
             bool fAlreadyHave = AlreadyHave(txdb, inv);
             LogPrint("net", "  got inventory: %s  %s\n", inv.ToString(), fAlreadyHave ? "have" : "new");
 
@@ -3282,7 +3347,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         // Send the rest of the chain
         if (pindex)
             pindex = pindex->pnext;
-        int nLimit = 50;
+        // How many blocks to announce per getblocks request (one sync batch).
+        // Set with -blockbatchsize; kept within 1..5000 (the protocol allows
+        // up to MAX_INV_SZ, but larger batches save little time).
+        int nLimit = (int)GetArg("-blockbatchsize", DEFAULT_BLOCK_BATCH_SIZE);
+        nLimit = std::max(1, std::min(nLimit, 5000));
         LogPrint("net", "getblocks %d to %s limit %d\n", (pindex ? pindex->nHeight : -1), hashStop.ToString(), nLimit);
         for (; pindex; pindex = pindex->pnext)
         {
@@ -3439,6 +3508,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (ProcessBlock(pfrom, &block))
             mapAlreadyAskedFor.erase(inv);
         if (block.nDoS) pfrom->Misbehaving(block.nDoS);
+
+        // The peer that sent this block has at least its height
+        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        if (mi != mapBlockIndex.end() && mi->second->nHeight > pfrom->nKnownHeight)
+            pfrom->nKnownHeight = mi->second->nHeight;
     }
 
 
@@ -3758,7 +3832,48 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
         // Start block sync
         if (pto->fStartSync && !fImporting && !fReindex) {
             pto->fStartSync = false;
+            // A new sync peer always gets the request, even if we asked it the
+            // same thing before
+            pto->pindexLastGetBlocksBegin = NULL;
+            pto->hashLastGetBlocksEnd = 0;
             PushGetBlocks(pto, pindexBest, uint256(0));
+        }
+
+        // Sync stall watchdog. If we're still catching up (or this peer is known
+        // to be ahead of us), we already asked it for blocks, and no new block
+        // has arrived for SYNC_STALL_TIMEOUT seconds, the answer was probably
+        // lost. PushGetBlocks drops a request identical to the last one, so
+        // clear that memory and ask again; after SYNC_STALLS_BEFORE_SWITCH
+        // tries in a row at the same height, download from another peer.
+        // (Without this a stalled sync waited for a new block to be found, or
+        // for the user to restart the wallet.)
+        if (!fImporting && !fReindex && pto->pindexLastGetBlocksBegin != NULL &&
+            (pto->nKnownHeight > nBestHeight || IsInitialBlockDownload()))
+        {
+            int64_t nNow = GetTime();
+            if (nNow - nTimeBestReceived > SYNC_STALL_TIMEOUT &&
+                nNow - pto->nLastGetBlocksTime > SYNC_STALL_TIMEOUT)
+            {
+                // Count firings in a row without progress
+                pto->nSyncStalls = (pto->nSyncStallHeight == nBestHeight) ? pto->nSyncStalls + 1 : 1;
+                pto->nSyncStallHeight = nBestHeight;
+
+                if (IsSyncNode(pto) && pto->nSyncStalls >= SYNC_STALLS_BEFORE_SWITCH)
+                {
+                    LogPrintf("sync stalled at height %d with %s %d times, switching peer\n",
+                              nBestHeight, pto->addrName, pto->nSyncStalls);
+                    pto->nSyncStalls = 0;
+                    ReleaseSyncNode(pto, 10 * 60);
+                }
+                else
+                {
+                    LogPrintf("sync stalled at height %d (peer %s at %d), asking again\n",
+                              nBestHeight, pto->addrName, pto->nKnownHeight);
+                    pto->pindexLastGetBlocksBegin = NULL;
+                    pto->hashLastGetBlocksEnd = 0;
+                    PushGetBlocks(pto, pindexBest, uint256(0));
+                }
+            }
         }
 
         // Resend wallet transactions that haven't gotten in a block yet

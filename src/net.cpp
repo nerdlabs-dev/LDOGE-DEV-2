@@ -1369,40 +1369,113 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOu
 }
 
 
-// for now, use a very simple selection metric: the node from which we received
-// most recently
-static int64_t NodeSyncScore(const CNode *pnode) {
-    return pnode->nLastRecv;
+// Client version a peer announced in its sub-version, e.g. "/LiteDoge:3.6.1.1/"
+// gives 3060101 (major*1000000 + minor*10000 + revision*100 + build); 0 if it
+// can't be read
+static int PeerClientVersion(const CNode *pnode) {
+    const std::string& s = pnode->strSubVer;
+    size_t pos = s.rfind(':');
+    if (pos == std::string::npos)
+        return 0;
+    int nMajor = 0, nMinor = 0, nRevision = 0, nBuild = 0;
+    if (sscanf(s.c_str() + pos + 1, "%d.%d.%d.%d", &nMajor, &nMinor, &nRevision, &nBuild) < 2)
+        return 0;
+    return nMajor * 1000000 + nMinor * 10000 + nRevision * 100 + nBuild;
 }
 
-void static StartSync(const vector<CNode*> &vNodes) {
-    CNode *pnodeNewSync = NULL;
-    int64_t nBestScore = 0;
+// Peers running 3.6.1.1 or newer send 500 blocks per request instead of 50
+// (3.6.1.0), so prefer them; among equals, the one we heard from most recently
+static int64_t NodeSyncScore(const CNode *pnode) {
+    int64_t nScore = pnode->nLastRecv;
+    if (PeerClientVersion(pnode) >= 3060101)
+        nScore += (int64_t)1 << 40;   // outranks any difference in nLastRecv
+    return nScore;
+}
 
+bool IsSyncNode(const CNode* pnode) {
+    return pnode == pnodeSync;
+}
+
+void ReleaseSyncNode(CNode* pnode, int64_t nSeconds) {
+    pnode->nSyncAvoidUntil = GetTime() + nSeconds;
+    if (pnode == pnodeSync)
+        pnodeSync = NULL;   // ThreadMessageHandler picks a new one
+}
+
+// Can we download blocks from this peer at all?
+static bool CanSyncFrom(const CNode *pnode) {
+    return !pnode->fClient && !pnode->fOneShot &&
+           !pnode->fDisconnect && pnode->fSuccessfullyConnected &&
+           (pnode->nVersion < NOBLKS_VERSION_START || pnode->nVersion >= NOBLKS_VERSION_END);
+}
+
+// Pick the peer to download blocks from. Height comes first: only peers within
+// SYNC_HEIGHT_SLACK blocks of the tallest one are considered, so a new node
+// does not latch onto another node that is itself still syncing. Among those,
+// 3.6.1.1+ peers win (bigger batches), then the one we heard from most recently.
+void static StartSync(const vector<CNode*> &vNodes) {
     // fImporting and fReindex are accessed out of cs_main here, but only
     // as an optimization - they are checked again in SendMessages.
     if (fImporting || fReindex)
         return;
 
-    // Iterate over all nodes
-    BOOST_FOREACH(CNode* pnode, vNodes) {
-        // check preconditions for allowing a sync
-        if (!pnode->fClient && !pnode->fOneShot &&
-            !pnode->fDisconnect && pnode->fSuccessfullyConnected &&
-            (pnode->nStartingHeight > (nBestHeight - 144)) &&
-            (pnode->nVersion < NOBLKS_VERSION_START || pnode->nVersion >= NOBLKS_VERSION_END)) {
-            // if ok, compare node's score with the best so far
+    // Peers we recently gave up on (see ReleaseSyncNode) are only used if
+    // there's no one else.
+    int64_t nNow = GetTime();
+    for (int nPass = 0; nPass < 2; nPass++) {
+        bool fUseAvoided = (nPass == 1);
+
+        int nMaxHeight = -1;
+        BOOST_FOREACH(CNode* pnode, vNodes) {
+            if (!CanSyncFrom(pnode) || (pnode->nSyncAvoidUntil > nNow) != fUseAvoided)
+                continue;
+            nMaxHeight = std::max(nMaxHeight, pnode->nKnownHeight);
+        }
+        if (nMaxHeight <= nBestHeight - 144)
+            continue;
+
+        CNode *pnodeNewSync = NULL;
+        int64_t nBestScore = 0;
+        BOOST_FOREACH(CNode* pnode, vNodes) {
+            if (!CanSyncFrom(pnode) || (pnode->nSyncAvoidUntil > nNow) != fUseAvoided)
+                continue;
+            if (pnode->nKnownHeight <= nBestHeight - 144 ||
+                pnode->nKnownHeight < nMaxHeight - SYNC_HEIGHT_SLACK)
+                continue;
             int64_t nScore = NodeSyncScore(pnode);
             if (pnodeNewSync == NULL || nScore > nBestScore) {
                 pnodeNewSync = pnode;
                 nBestScore = nScore;
             }
         }
+        if (pnodeNewSync) {
+            LogPrintf("sync: downloading from %s (%s) height %d, tallest peer %d, us %d\n",
+                      pnodeNewSync->addrName, pnodeNewSync->strSubVer,
+                      pnodeNewSync->nKnownHeight, nMaxHeight, nBestHeight);
+            pnodeNewSync->fStartSync = true;
+            pnodeSync = pnodeNewSync;
+            return;
+        }
     }
-    // if a new sync candidate was found, start sync!
-    if (pnodeNewSync) {
-        pnodeNewSync->fStartSync = true;
-        pnodeSync = pnodeNewSync;
+}
+
+// The sync peer has sent every block it is known to have. If another usable
+// peer is clearly further ahead, move to it now rather than waiting for the
+// stall watchdog (which takes a couple of minutes to give up).
+void static SwitchIfSyncNodeExhausted(const vector<CNode*> &vNodes) {
+    if (fImporting || fReindex || pnodeSync == NULL || pnodeSync->nKnownHeight > nBestHeight)
+        return;
+    int64_t nNow = GetTime();
+    BOOST_FOREACH(CNode* pnode, vNodes) {
+        if (pnode == pnodeSync || !CanSyncFrom(pnode) || pnode->nSyncAvoidUntil > nNow)
+            continue;
+        if (pnode->nKnownHeight >= nBestHeight + SYNC_SWITCH_MARGIN) {
+            LogPrintf("sync: %s has no more blocks for us (height %d), %s is at %d, switching\n",
+                      pnodeSync->addrName, nBestHeight, pnode->addrName, pnode->nKnownHeight);
+            ReleaseSyncNode(pnodeSync, 10 * 60);
+            StartSync(vNodes);
+            return;
+        }
     }
 }
 
@@ -1426,6 +1499,8 @@ void ThreadMessageHandler()
 
         if (!fHaveSyncNode)
             StartSync(vNodesCopy);
+        else
+            SwitchIfSyncNodeExhausted(vNodesCopy);
 
         // Poll the connected nodes for messages
         CNode* pnodeTrickle = NULL;

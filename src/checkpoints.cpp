@@ -369,6 +369,14 @@ namespace Checkpoints
 
         if (nHeight > pindexSync->nHeight)
         {
+            // Fast path: when both the sync-checkpoint and the new block's parent
+            // are on our main chain, the parent descends from the checkpoint (the
+            // main chain is a single line). Without this, every new block walked
+            // back to the checkpoint one block at a time; at LiteDoge's height
+            // that is millions of steps per block, and it grows with the chain.
+            if (pindexSync->IsInMainChain() && pindexPrev->IsInMainChain())
+                return true;
+
             // trace back to same height as sync-checkpoint
             const CBlockIndex* pindex = pindexPrev;
             while (pindex->nHeight > pindexSync->nHeight)

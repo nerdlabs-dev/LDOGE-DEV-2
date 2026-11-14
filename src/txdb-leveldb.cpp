@@ -28,8 +28,14 @@ leveldb::DB *txdb; // global pointer for LevelDB object instance
 
 static leveldb::Options GetOptions() {
     leveldb::Options options;
-    int nCacheSizeMB = GetArg("-dbcache", 25);
-    options.block_cache = leveldb::NewLRUCache(nCacheSizeMB * 1048576);
+    // -dbcache is split like Bitcoin 0.8 does it: half read cache, a quarter
+    // write buffer (x2, LevelDB keeps one being written and one being flushed).
+    // LevelDB's own 4 MB write buffer makes it flush and compact constantly
+    // while a node is downloading the chain.
+    int64_t nCacheSizeMB = std::max((int64_t)8, std::min((int64_t)16384, GetArg("-dbcache", DEFAULT_TXDB_CACHE_MB)));
+    size_t nCacheSize = (size_t)nCacheSizeMB * 1048576;
+    options.block_cache = leveldb::NewLRUCache(nCacheSize / 2);
+    options.write_buffer_size = nCacheSize / 4;
     options.filter_policy = leveldb::NewBloomFilterPolicy(10);
     return options;
 }
@@ -44,7 +50,7 @@ void init_blockindex(leveldb::Options& options, bool fRemoveOld = false) {
 
         while (true)
         {
-            boost::filesystem::path strBlockFile = GetDataDir() / strprintf("blk%04u.dat", nFile);
+            boost::filesystem::path strBlockFile = BlockFilePath(nFile);
 
             // Break if no such file
             if( !boost::filesystem::exists( strBlockFile ) )
@@ -79,9 +85,8 @@ CTxDB::CTxDB(const char* pszMode)
 
     bool fCreate = strchr(pszMode, 'c');
 
-    options = GetOptions();
+    options = GetOptions(); // already sets filter_policy
     options.create_if_missing = fCreate;
-    options.filter_policy = leveldb::NewBloomFilterPolicy(10);
 
     init_blockindex(options); // Init directory
     pdb = txdb;
