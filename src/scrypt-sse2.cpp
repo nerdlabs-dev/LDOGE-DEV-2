@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Colin Percival, 2011 ArtForz, 2012-2022 pooler
+ * Copyright 2009 Colin Percival, 2011 ArtForz, 2012-2027 pooler
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

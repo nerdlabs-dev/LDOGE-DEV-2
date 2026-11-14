@@ -1,4 +1,4 @@
-// Copyright (c) 2013-2022 LiteDogecoin Developers
+// Copyright (c) 2013-2027 LiteDogecoin Developers
 
 #include <string.h>
 #include "pbkdf2.h"

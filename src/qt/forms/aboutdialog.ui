@@ -91,9 +91,9 @@
         <cursorShape>IBeamCursor</cursorShape>
        </property>
        <property name="text">
-        <string>Copyright © 2009-2021 The Bitcoin developers
-Copyright © 2012-2021 The LiteDogecoin developers
-Copyright © 2021 The BlackCoin developers</string>
+        <string>Copyright © 2009-2027 The Bitcoin developers
+Copyright © 2012-2027 The LiteDoge developers
+Copyright © 2021-2027 The BlackCoin developers</string>
        </property>
        <property name="textInteractionFlags">
         <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
