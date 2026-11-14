@@ -1473,6 +1473,15 @@ static int64_t NodeSyncScore(const CNode *pnode) {
     return nScore;
 }
 
+int GetBestPeerHeight() {
+    int nMax = -1;
+    LOCK(cs_vNodes);
+    BOOST_FOREACH(CNode* pnode, vNodes)
+        if (pnode->fSuccessfullyConnected && !pnode->fDisconnect)
+            nMax = std::max(nMax, pnode->nKnownHeight);
+    return nMax;
+}
+
 bool IsSyncNode(const CNode* pnode) {
     return pnode == pnodeSync;
 }

@@ -5,6 +5,8 @@
 #ifndef BITCOIN_MAIN_H
 #define BITCOIN_MAIN_H
 
+#include <atomic>
+
 #include "core.h"
 #include "bignum.h"
 #include "sync.h"
@@ -93,6 +95,10 @@ extern CTxMemPool mempool;
 extern std::map<uint256, CBlockIndex*> mapBlockIndex;
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern CBlockIndex* pindexGenesisBlock;
+// Copies of the tip's height and time the GUI can read at any moment without
+// waiting for cs_main (which block processing holds almost constantly while syncing)
+extern std::atomic<int> nBestHeightUI;
+extern std::atomic<int64_t> nBestTimeUI;
 extern unsigned int nStakeMinAge;
 extern unsigned int nNodeLifespan;
 extern int nCoinbaseMaturity;

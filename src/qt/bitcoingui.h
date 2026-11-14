@@ -5,6 +5,8 @@
 #include <QSystemTrayIcon>
 
 #include <stdint.h>
+#include <deque>
+#include <utility>
 
 class TransactionTableModel;
 class ClientModel;
@@ -78,6 +80,11 @@ private:
     QLabel *labelBlocksIcon;
     QLabel *progressBarLabel;
     QProgressBar *progressBar;
+    QLabel *labelBlockHeight;
+    /** (time in ms, block height) samples of the last minute, for the sync speed */
+    std::deque<std::pair<qint64, int> > syncSamples;
+    /** Speed and time left while syncing, e.g. "120 blocks/s, about 2 h 10 min left" */
+    QString syncEstimateText;
 
     QMenuBar *appMenuBar;
     QAction *overviewAction;
@@ -157,6 +164,8 @@ public slots:
     void handleURI(QString strURI);
 
 private slots:
+    /** Once a second: block height in the status bar, sync speed and time left */
+    void updateSyncEstimate();
     /** Switch to overview (home) page */
     void gotoOverviewPage();
     /** Switch to history (transactions) page */

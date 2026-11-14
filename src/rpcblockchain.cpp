@@ -85,10 +85,16 @@ double GetPoSKernelPS()
     {
         if (pindex->IsProofOfStake())
         {
-            dStakeKernelsTriedAvg += GetDifficulty(pindex) * 4294967296.0;
-            nStakesTime += pindexPrevStake ? (pindexPrevStake->nTime - pindex->nTime) : 0;
+            // Pair each stake's difficulty with the time it took (since the
+            // stake before it); the newest stake has no time yet. (Was off by
+            // one: the newest block's difficulty was counted with no time.)
+            if (pindexPrevStake)
+            {
+                dStakeKernelsTriedAvg += GetDifficulty(pindexPrevStake) * 4294967296.0;
+                nStakesTime += pindexPrevStake->nTime - pindex->nTime;
+                nStakesHandled++;
+            }
             pindexPrevStake = pindex;
-            nStakesHandled++;
         }
 
         pindex = pindex->pprev;

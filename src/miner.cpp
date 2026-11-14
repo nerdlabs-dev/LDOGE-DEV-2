@@ -540,12 +540,15 @@ void ThreadStakeMiner(CWallet *pwallet)
             MilliSleep(1000);
         }
 
+        // Wait until we're connected and caught up. (This loop used to end
+        // with "return;", which stopped the staking thread for good: a wallet
+        // that was unlocked, or not encrypted, while it was still syncing at
+        // startup never staked until it was restarted.)
         while (vNodes.empty() || IsInitialBlockDownload())
         {
             nLastCoinStakeSearchInterval = 0;
             fTryToSync = true;
             MilliSleep(1000);
-                return;
         }
 
         if (fTryToSync)
@@ -564,7 +567,11 @@ void ThreadStakeMiner(CWallet *pwallet)
         int64_t nFees;
         unique_ptr<CBlock> pblock(CreateNewBlock(reservekey, true, &nFees));
         if (!pblock.get())
-            return;
+        {
+            // Try again later rather than stopping the staking thread
+            MilliSleep(10000);
+            continue;
+        }
         
         // Trying to sign a block
         if (pblock->SignBlock(*pwallet, nFees))

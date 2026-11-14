@@ -33,6 +33,8 @@
 #include "init.h"
 #include "ui_interface.h"
 #include "chatpage.h"
+#include "main.h"
+#include "net.h"
 
 
 #ifdef Q_OS_MAC
@@ -198,7 +200,16 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     }
 
     statusBar()->addWidget(progressBarLabel);
-    statusBar()->addWidget(progressBar);
+    statusBar()->addWidget(progressBar, 1);
+
+    // Current block height, always shown
+    labelBlockHeight = new QLabel();
+    labelBlockHeight->setToolTip(tr("Height of the newest block this wallet has"));
+    statusBar()->addPermanentWidget(labelBlockHeight);
+
+    QTimer *timerSyncEstimate = new QTimer(this);
+    connect(timerSyncEstimate, SIGNAL(timeout()), this, SLOT(updateSyncEstimate()));
+    timerSyncEstimate->start(1000);
 
     syncIconMovie = new QMovie(fUseBlackTheme ? ":/movies/update_spinner_black" : ":/movies/update_spinner", "mng", this);
 
@@ -589,12 +600,11 @@ void BitcoinGUI::setNumBlocks(int count)
     // don't show / hide progress bar and its label if we have no connection to the network
     if (!clientModel || (clientModel->getNumConnections() == 0 && !clientModel->isImporting()))
     {
-        statusBar()->setVisible(false);
-
+        progressBarLabel->setVisible(false);
+        progressBar->setVisible(false);
         return;
     }
 
-    bool fShowStatusBar = false;
     QString tooltip;
 
     QDateTime lastBlockDate = clientModel->getLastBlockDate();
@@ -644,12 +654,13 @@ void BitcoinGUI::setNumBlocks(int count)
 
         progressBarLabel->setText(tr(clientModel->isImporting() ? "Importing blocks..." : "Synchronizing litedoge..."));
         progressBarLabel->setVisible(true);
-        progressBar->setFormat(tr("%1 behind").arg(timeBehindText));
+        if (syncEstimateText.isEmpty())
+            progressBar->setFormat(tr("%1 behind").arg(timeBehindText));
+        else
+            progressBar->setFormat(tr("%1 behind").arg(timeBehindText) + " - " + syncEstimateText);
         progressBar->setMaximum(totalSecs);
         progressBar->setValue(totalSecs - secs);
         progressBar->setVisible(true);
-        fShowStatusBar = true;
-
         tooltip = tr("Catching up...") + QString("<br>") + tooltip;
         labelBlocksIcon->setMovie(syncIconMovie);
         if(count != prevBlocks)
@@ -671,7 +682,60 @@ void BitcoinGUI::setNumBlocks(int count)
     progressBarLabel->setToolTip(tooltip);
     progressBar->setToolTip(tooltip);
 
-    statusBar()->setVisible(fShowStatusBar);
+}
+
+// Human readable time left, e.g. "about 2 h 10 min"
+static QString FormatTimeLeft(qint64 nSeconds)
+{
+    if (nSeconds < 60)
+        return QObject::tr("less than a minute");
+    qint64 nMinutes = nSeconds / 60;
+    if (nMinutes < 60)
+        return QObject::tr("about %1 min").arg(nMinutes);
+    qint64 nHours = nMinutes / 60;
+    if (nHours < 48)
+        return QObject::tr("about %1 h %2 min").arg(nHours).arg(nMinutes % 60);
+    return QObject::tr("about %1 days %2 h").arg(nHours / 24).arg(nHours % 24);
+}
+
+void BitcoinGUI::updateSyncEstimate()
+{
+    if (!clientModel)
+        return;
+    int nHeight = clientModel->getNumBlocks();
+    labelBlockHeight->setText(nHeight >= 0 ? tr("Block %1").arg(nHeight) : QString());
+
+    qint64 nNow = QDateTime::currentMSecsSinceEpoch();
+    qint64 nBehind = clientModel->getLastBlockDate().secsTo(QDateTime::currentDateTime());
+    if (nBehind < 90 * 60 || clientModel->getNumConnections() == 0)
+    {
+        // Caught up (or not connected): no estimate
+        syncSamples.clear();
+        syncEstimateText.clear();
+        return;
+    }
+
+    syncSamples.push_back(std::make_pair(nNow, nHeight));
+    while (syncSamples.size() > 2 && nNow - syncSamples.front().first > 60 * 1000)
+        syncSamples.pop_front();
+
+    // How far to go: the tallest peer, or at least what the time behind implies
+    int nTarget = std::max(GetBestPeerHeight(), nHeight + (int)(nBehind / GetTargetSpacing(nHeight)));
+    int nLeft = std::max(0, nTarget - nHeight);
+
+    qint64 nSpan = nNow - syncSamples.front().first;
+    int nDone = nHeight - syncSamples.front().second;
+    if (nSpan < 5 * 1000 || nDone <= 0)
+    {
+        syncEstimateText = tr("%1 blocks to go").arg(nLeft);
+    }
+    else
+    {
+        double dRate = nDone * 1000.0 / nSpan;
+        syncEstimateText = tr("%1 blocks/s, %2 left").arg(dRate < 10 ? QString::number(dRate, 'f', 1) : QString::number((int)dRate))
+                                                     .arg(FormatTimeLeft((qint64)(nLeft / dRate)));
+    }
+    setNumBlocks(nHeight);
 }
 
 void BitcoinGUI::message(const QString &title, const QString &message, bool modal, unsigned int style)

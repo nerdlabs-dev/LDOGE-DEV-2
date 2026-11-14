@@ -46,6 +46,8 @@ CNode* FindNode(const std::string& addrName);
 CNode* FindNode(const CService& ip);
 CNode* ConnectNode(CAddress addrConnect, const char *strDest = NULL);
 void MapPort(bool fUseUPnP);
+/** Highest block height any connected peer is known to have (-1 if none) */
+int GetBestPeerHeight();
 /** Is this the peer we're downloading the chain from? */
 bool IsSyncNode(const CNode* pnode);
 /** Stop downloading from this peer and pick another (it's skipped for nSeconds) */
