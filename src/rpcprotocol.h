@@ -23,7 +23,12 @@
 #include "json/json_spirit_utils.h"
 #include "json/json_spirit_writer_template.h"
 
-// Boost Support for 1.70+
+// The RPC code uses the Asio API from Boost 1.66+ (io_context, resolver
+// results, max_listen_connections); Boost 1.87 removed the older one.
+#if BOOST_VERSION < 106600
+#error "Boost 1.66 or newer is required"
+#endif
+// Boost 1.70 removed get_io_service(); reach the io_context through the executor
 #if BOOST_VERSION >= 107000
     #define GetIOService(s) ((boost::asio::io_context&)(s).get_executor().context())
     #define GetIOServiceFromPtr(s) ((boost::asio::io_context&)(s->get_executor().context()))
@@ -118,15 +123,8 @@ public:
     bool connect(const std::string& server, const std::string& port)
     {
         boost::asio::ip::tcp::resolver resolver(GetIOService(stream));
-        boost::asio::ip::tcp::resolver::query query(server.c_str(), port.c_str());
-        boost::asio::ip::tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
-        boost::asio::ip::tcp::resolver::iterator end;
         boost::system::error_code error = boost::asio::error::host_not_found;
-        while (error && endpoint_iterator != end)
-        {
-            stream.lowest_layer().close();
-            stream.lowest_layer().connect(*endpoint_iterator++, error);
-        }
+        boost::asio::connect(stream.lowest_layer(), resolver.resolve(server, port, error), error);
         if (error)
             return false;
         return true;

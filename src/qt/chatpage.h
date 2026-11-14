@@ -2,10 +2,6 @@
 #define CHATPAGE_H
 
 #include <QWidget>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QByteArray>
-#include <QTimer>
 
 namespace Ui {
     class ChatPage;
@@ -17,7 +13,7 @@ QT_BEGIN_NAMESPACE
 class QModelIndex;
 QT_END_NAMESPACE
 
-/** Trade page widget */
+/** IRC chat page */
 class ChatPage : public QWidget
 {
     Q_OBJECT
@@ -39,7 +35,7 @@ private:
     WalletModel *walletModel;
 
 private slots:
-
+    void openChat();
 };
 
 #endif // CHATPAGE_H
