@@ -7,6 +7,8 @@ DEFINES += ENABLE_WALLET
 DEFINES += BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE BOOST_BIND_GLOBAL_PLACEHOLDERS
 CONFIG += no_include_pwd
 CONFIG += thread
+# The 2014-era code is C++17 (newer compilers default to C++20)
+CONFIG += c++17
 
 greaterThan(QT_MAJOR_VERSION, 4) {
     QT += widgets

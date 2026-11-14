@@ -975,173 +975,125 @@
      </widget>
      <widget class="QWidget" name="tab_2">
       <attribute name="title">
-       <string>deps</string>
+       <string>&amp;Libraries</string>
       </attribute>
-      <widget class="QLabel" name="label_30">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>80</y>
-         <width>81</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="font">
-        <font>
-         <pointsize>10</pointsize>
-         <weight>75</weight>
-         <bold>true</bold>
-        </font>
-       </property>
-       <property name="text">
-        <string>qrendcode:</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_miniupnp_version">
-       <property name="geometry">
-        <rect>
-         <x>90</x>
-         <y>40</y>
-         <width>581</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>N/A</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_bdb_version">
-       <property name="geometry">
-        <rect>
-         <x>90</x>
-         <y>0</y>
-         <width>581</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>N/A</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_boost_version">
-       <property name="geometry">
-        <rect>
-         <x>90</x>
-         <y>20</y>
-         <width>581</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>N/A</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_31">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>40</y>
-         <width>81</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="font">
-        <font>
-         <pointsize>10</pointsize>
-         <weight>75</weight>
-         <bold>true</bold>
-        </font>
-       </property>
-       <property name="text">
-        <string>miniupnp:</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_32">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>0</y>
-         <width>81</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="font">
-        <font>
-         <pointsize>10</pointsize>
-         <weight>75</weight>
-         <bold>true</bold>
-        </font>
-       </property>
-       <property name="text">
-        <string>Berkeley DB:</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_33">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>60</y>
-         <width>81</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="font">
-        <font>
-         <pointsize>10</pointsize>
-         <weight>75</weight>
-         <bold>true</bold>
-        </font>
-       </property>
-       <property name="text">
-        <string>OpenSSL:</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="lable_qrencode_version">
-       <property name="geometry">
-        <rect>
-         <x>90</x>
-         <y>80</y>
-         <width>581</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>N/A</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="lable_openssl_version">
-       <property name="geometry">
-        <rect>
-         <x>90</x>
-         <y>60</y>
-         <width>581</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>N/A</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_34">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>20</y>
-         <width>81</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="font">
-        <font>
-         <pointsize>10</pointsize>
-         <weight>75</weight>
-         <bold>true</bold>
-        </font>
-       </property>
-       <property name="text">
-        <string>Boost:</string>
-       </property>
-      </widget>
+      <layout class="QFormLayout" name="formLayoutDeps">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_dep0">
+         <property name="font">
+          <font>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Berkeley DB:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="label_bdb_version">
+         <property name="text">
+          <string>N/A</string>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_dep1">
+         <property name="font">
+          <font>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>Boost:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="label_boost_version">
+         <property name="text">
+          <string>N/A</string>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_dep2">
+         <property name="font">
+          <font>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>miniupnpc:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLabel" name="label_miniupnp_version">
+         <property name="text">
+          <string>N/A</string>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_dep3">
+         <property name="font">
+          <font>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>OpenSSL:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLabel" name="lable_openssl_version">
+         <property name="text">
+          <string>N/A</string>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_dep4">
+         <property name="font">
+          <font>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>qrencode:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QLabel" name="lable_qrencode_version">
+         <property name="text">
+          <string>N/A</string>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </widget>
    </item>

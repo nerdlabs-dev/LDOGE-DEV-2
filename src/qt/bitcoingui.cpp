@@ -84,7 +84,7 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     prevBlocks(0),
     nWeight(0)
 {
-    resize(850+95, 400);
+    resize(1100, 760);
     setWindowTitle(tr("LiteDoge") + " - " + tr("Wallet"));
 #ifndef Q_OS_MAC
     qApp->setWindowIcon(QIcon(":icons/bitcoin"));
@@ -231,6 +231,11 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
     connect(receiveCoinsPage, SIGNAL(signMessage(QString)), this, SLOT(gotoSignMessageTab(QString)));
 
     gotoOverviewPage();
+
+    // Never make the window so short that the page buttons on the left get
+    // cut off (the last ones disappeared behind the toolbar's >> button)
+    setMinimumHeight(toolbar->sizeHint().height() + statusBar()->sizeHint().height());
+    setMinimumWidth(780);
 }
 
 BitcoinGUI::~BitcoinGUI()
