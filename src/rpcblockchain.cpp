@@ -231,6 +231,35 @@ Value getblockhash(const Array& params, bool fHelp)
     return pblockindex->phashBlock->GetHex();
 }
 
+Value dumpcheckpoints(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 3)
+        throw runtime_error(
+            "dumpcheckpoints [start] [step] [depth]\n"
+            "Lists block heights and hashes of the main chain, ready to paste into\n"
+            "checkpoints.cpp: every [step] blocks (default 25000) from [start]\n"
+            "(default 3700000), stopping [depth] blocks (default 1000) below the tip.");
+
+    int nStart = params.size() > 0 ? params[0].get_int() : 3700000;
+    int nStep = params.size() > 1 ? params[1].get_int() : 25000;
+    int nDepth = params.size() > 2 ? params[2].get_int() : 1000;
+    if (nStart < 0 || nStep <= 0 || nDepth < 0)
+        throw runtime_error("start, step and depth must be positive");
+
+    LOCK(cs_main);
+    std::string strResult;
+    for (int nHeight = nStart; nHeight <= nBestHeight - nDepth; nHeight += nStep)
+    {
+        CBlockIndex* pindex = FindBlockByHeight(nHeight);
+        if (!pindex)
+            break;
+        strResult += strprintf("            ( %8d, uint256(\"0x%s\") )\n", nHeight, pindex->GetBlockHash().GetHex());
+    }
+    if (strResult.empty())
+        return strprintf("No blocks in that range yet (tip is %d)", nBestHeight);
+    return strResult;
+}
+
 Value getblock(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
