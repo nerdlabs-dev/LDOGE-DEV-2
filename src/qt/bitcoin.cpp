@@ -26,6 +26,8 @@
 #include <QTranslator>
 #include <QSplashScreen>
 #include <QLibraryInfo>
+#include <QLabel>
+#include <QVBoxLayout>
 
 #if defined(BITCOIN_NEED_QT_PLUGINS) && !defined(_BITCOIN_QT_PLUGINS_INCLUDED)
 #define _BITCOIN_QT_PLUGINS_INCLUDED
@@ -256,6 +258,9 @@ int main(int argc, char *argv[])
 
         boost::thread_group threadGroup;
 
+        // Shown while the core shuts down, after the main window is gone
+        QWidget shutdownWindow;
+
         BitcoinGUI window;
         guiref = &window;
 
@@ -297,7 +302,27 @@ int main(int argc, char *argv[])
 
                 app.exec();
 
-                window.hide();
+                // Hide every window, not just the main one: the debug window
+                // (and any other dialog left open) used to stay on screen,
+                // frozen, while the core shut down, so the wallet looked hung
+                Q_FOREACH (QWidget *w, QApplication::topLevelWidgets())
+                    if (w != &shutdownWindow)
+                        w->hide();
+
+                // Shutting down can take a while (flushing the databases, and
+                // while syncing, finishing the blocks being processed); say so
+                shutdownWindow.setWindowTitle(QObject::tr("LiteDoge"));
+                shutdownWindow.setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::CustomizeWindowHint);
+                QVBoxLayout *shutdownLayout = new QVBoxLayout(&shutdownWindow);
+                shutdownLayout->addWidget(new QLabel(QObject::tr("LiteDoge is shutting down...") + "<br /><br />" +
+                    QObject::tr("Do not shut down the computer until this window disappears."), &shutdownWindow));
+                shutdownLayout->setContentsMargins(24, 24, 24, 24);
+                shutdownWindow.adjustSize();
+                shutdownWindow.move(QApplication::desktop()->availableGeometry().center() - shutdownWindow.rect().center());
+                shutdownWindow.show();
+                for (int i = 0; i < 5; i++)
+                    app.processEvents();
+
                 window.setClientModel(0);
                 window.setWalletModel(0);
                 guiref = 0;

@@ -2389,6 +2389,9 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
     vWorkQueue.push_back(hash);
     for (unsigned int i = 0; i < vWorkQueue.size(); i++)
     {
+        // Connecting a long run of orphans can take a while; let shutdown
+        // stop it (the rest stay in the orphan pool)
+        boost::this_thread::interruption_point();
         uint256 hashPrev = vWorkQueue[i];
         for (multimap<uint256, COrphanBlock*>::iterator mi = mapOrphanBlocksByPrev.lower_bound(hashPrev);
              mi != mapOrphanBlocksByPrev.upper_bound(hashPrev);
