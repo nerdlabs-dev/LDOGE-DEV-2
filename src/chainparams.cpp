@@ -21,6 +21,8 @@ struct SeedSpec6 {
 
 #include "chainparamsseeds.h"
 
+using namespace std;
+
 //
 // Main network
 //
