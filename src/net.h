@@ -416,6 +416,19 @@ public:
         }
     }
 
+    // Send this inventory even if we told the peer about it before. Used to
+    // answer getblocks: a peer that asks again (its earlier answer was lost,
+    // or it is syncing again) needs the same block list again, and the
+    // known-inventory filter used to drop all of it, so its sync stalled.
+    void PushInventoryAgain(const CInv& inv)
+    {
+        {
+            LOCK(cs_inventory);
+            setInventoryKnown.erase(inv);
+            vInventoryToSend.push_back(inv);
+        }
+    }
+
     void AskFor(const CInv& inv)
     {
         // We're using mapAskFor as a priority queue,

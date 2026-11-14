@@ -5,6 +5,7 @@
 #define BITCOIN_MRUSET_H
 
 #include <set>
+#include <algorithm>
 #include <deque>
 
 /** STL-like set container that only keeps the most recent N elements. */
@@ -47,6 +48,15 @@ public:
             queue.push_back(x);
         }
         return ret;
+    }
+    size_type erase(const key_type& x)
+    {
+        if (!set.erase(x))
+            return 0;
+        typename std::deque<key_type>::iterator it = std::find(queue.begin(), queue.end(), x);
+        if (it != queue.end())
+            queue.erase(it);
+        return 1;
     }
     size_type max_size() const { return nMaxSize; }
     size_type max_size(size_type s)
