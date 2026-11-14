@@ -93,7 +93,7 @@ jobs:
         run: |
           file litedoge-qt
           ldd litedoge-qt
-          if ldd litedoge-qt | grep -Ei 'boost|libdb|libssl|libcrypto|miniupnpc|qrencode'; then
+          if ldd litedoge-qt | grep -Ei 'boost|libdb_cxx|libdb-[0-9]|libssl|libcrypto\.|miniupnpc|qrencode'; then
             echo "litedoge-qt should not need the shared libraries listed above"; exit 1
           fi
 
