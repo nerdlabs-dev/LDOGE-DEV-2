@@ -103,9 +103,13 @@ public:
         vSeeds.push_back(CDNSSeedData("seed06", "seed06.litedogeofficial.org"));
         vSeeds.push_back(CDNSSeedData("seed07", "seed07.litedogeofficial.org"));
         vSeeds.push_back(CDNSSeedData("seed08", "seed08.litedogeofficial.org"));
+        vSeeds.push_back(CDNSSeedData("seed09", "seed09.litedogeofficial.org"));
+        vSeeds.push_back(CDNSSeedData("seed10", "seed10.litedogeofficial.org"));
         vSeeds.push_back(CDNSSeedData("lab-node0", "ldoge0.nerdlabs.dev"));
-        vSeeds.push_back(CDNSSeedData("lab-node1", "ldoge1.nerdlabs.dev"));
-        vSeeds.push_back(CDNSSeedData("lab-node2", "ldoge2.nerdlabs.dev"));
+        vSeeds.push_back(CDNSSeedData("lab-000", "000.nerdlabs.dev"));
+        vSeeds.push_back(CDNSSeedData("lab-001", "001.nerdlabs.dev"));
+        vSeeds.push_back(CDNSSeedData("lab-002", "002.nerdlabs.dev"));
+        vSeeds.push_back(CDNSSeedData("lab-003", "003.nerdlabs.dev"));
 
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,90);
